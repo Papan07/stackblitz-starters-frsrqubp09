@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const { resolve } = require('path');
 const mongoose = require('mongoose');
@@ -6,39 +7,36 @@ const bcrypt = require('bcrypt');
 const User = require('./models/User');
 
 const app = express();
-const port = 3010;
+const port = process.env.PORT || 3000;
 
 app.use(express.static('static'));
 app.use(bodyParser.json());
 
-mongoose.connect('mongodb://localhost:27017/online-marketplace', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => {
-  console.log('Connected to MongoDB');
-}).catch(err => {
-  console.error('Error connecting to MongoDB:', err);
-});
+// Connect to MongoDB using the connection string from .env
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log('Connected to MongoDB');
+  })
+  .catch(err => {
+    console.error('Error connecting to MongoDB:', err);
+  });
 
-
+// Serve the homepage
 app.get('/', (req, res) => {
   res.sendFile(resolve(__dirname, 'pages/index.html'));
 });
 
-
+// Endpoint to register a user
 app.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
 
-  // Validate input
   if (!username || !email || !password) {
     return res.status(400).json({ message: 'All fields are required' });
   }
 
   try {
-    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create a new user
     const newUser = new User({
       username,
       email,
@@ -53,7 +51,17 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// Start the server
+// Start the server and handle port conflicts
 app.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${port} is already in use. Trying a different port...`);
+    app.listen(0, () => {
+      const newPort = app.address().port;
+      console.log(`Server started on a new port: http://localhost:${newPort}`);
+    });
+  } else {
+    console.error('Error starting the server:', err);
+  }
 });
